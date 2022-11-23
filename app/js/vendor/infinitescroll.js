@@ -1,85 +1,98 @@
 // https://github.com/MatthewRayfield/tumblr-infinite-scrolling
+// tried to reverse engineer these mf variable names, holy fuck
 
 var tumblrAutoPager = {
     url: "http://proto.jp/",
     ver: "0.1.7",
     rF: true,
-    gP: {},
-    pp: null,
-    ppId: "",
-    LN: location.hostname,
+    posts: {},
+    parentNode: null,
+    parentNodeId: "",
+    location: location.hostname,
     init: function() {
         if ($("autopagerize_icon")) return;
-        var tAP = tumblrAutoPager;
-        var p = 1;
-        var lh = location.href;
-        var lhp = lh.lastIndexOf("/page/");
-        var lht = lh.lastIndexOf("/tagged/");
-        if (lhp != -1) {
-            p = parseInt(lh.slice(lhp + 6));
-            tAP.LN = lh.slice(7, lhp);
-        } else if (lht != -1) {
-            tAP.LN = lh.slice(7);
-            if (tAP.LN.slice(tAP.LN.length - 1) == "/") tAP.LN = tAP.LN.slice(0, tAP.LN.length - 1);
-        } else if (location.protocol + "//" + tAP.LN + "/" != lh) {
+        var self = tumblrAutoPager;
+        
+        var page = 1;
+        
+        var locationHref = location.href;
+        
+        var locationHrefLastIdxPage = locationHref.lastIndexOf("/page/");
+        var locationHrefLastIdxTagged = locationHref.lastIndexOf("/tagged/");
+        
+        if (locationHrefLastIdxPage != -1) {
+            page = parseInt(locationHref.slice(locationHrefLastIdxPage + 6));
+            self.location = locationHref.slice(7, locationHrefLastIdxPage);
+        } else if (locationHrefLastIdxTagged != -1) {
+            self.location = locationHref.slice(7);
+            if (self.location.slice(self.location.length - 1) == "/") {
+                self.location = self.location.slice(0, self.location.length - 1);
+            }
+        } else if (location.protocol + "//" + self.location + "/" != locationHref) {
             return;
         };
-        var gPFncs = [];
-        gPFncs[0] = function(aE) {
-            var r = [];
-            for (var i = 0, l = aE.length; i < l; i++) {
-                if (aE[i].className == "autopagerize_page_element") {
-                    r = gCE(aE[i]);
+        
+        var getPostFunctions = [];
+        
+        getPostFunctions[0] = function(allElements) {
+            var ret = [];
+            for (var i = 0, l = allElements.length; i < l; i++) {
+                if (allElements[i].className == "autopagerize_page_element") {
+                    ret = getChildElements(allElements[i]);
                     break;
                 }
             }
-            return r;
+            return ret;
         };
-        gPFncs[1] = function(aE) {
-            var r = [];
-            for (var i = 0, l = aE.length; i < l; i++) {
-                var arr = aE[i].className ? aE[i].className.split(" ") : null;
-                if (arr) {
-                    for (var j = 0; j < arr.length; j++) {
-                        arr[j] == "post" ? r.push(aE[i]) : null;
+        
+        getPostFunctions[1] = function(allElements) {
+            var ret = [];
+            for (var i = 0, l = allElements.length; i < l; i++) {
+		        allElements[i].classList.forEach(item => {
+                    if (item == "post") {
+                        ret.push(allElements[i]);
                     }
-                }
+		        });
             }
-            return r;
+            return ret;
         };
-        gPFncs[2] = function(aE) {
-            var r = [];
-            var tmpId = tAP.ppId ? [tAP.ppId] : ["posts", "main", "container", "content", "apDiv2", "wrapper", "projects"];
-            for (var i = 0, l = aE.length; i < l; i++) {
+        
+        getPostFunctions[2] = function(allElements) {
+            var ret = [];
+            var tmpId = self.parentNodeId ? [self.parentNodeId] : ["posts", "main", "container", "content", "apDiv2", "wrapper", "projects"];
+            for (var i = 0, l = allElements.length; i < l; i++) {
                 for (var j = 0; j < tmpId.length; j++) {
-                    if (aE[i].id == tmpId[j]) {
-                        r = gCE(aE[i]);
-                        tAP.ppId = aE[i].id;
+                    if (allElements[i].id == tmpId[j]) {
+                        ret = getChildElements(allElements[i]);
+                        self.parentNodeId = allElements[i].id;
                         break;
                     }
                 }
             }
-            return r;
+            return ret;
         };
-        for (var i = 0; i < gPFncs.length; i++) {
-            var getElems = gPFncs[i](document.body.getElementsByTagName('*'));
+        
+        for (var i = 0; i < getPostFunctions.length; i++) {
+            var getElems = getPostFunctions[i](document.body.getElementsByTagName('*'));
             if (getElems.length) {
-                tAP.gP = gPFncs[i];
-                tAP.pp = getElems[0].parentNode;
+                self.posts = getPostFunctions[i];
+                self.parentNode = getElems[0].parentNode;
                 break;
             }
         }
 
-        function gCE(pElem) {
-            var r = [];
+        function getChildElements(pElem) {
+            var ret = [];
             for (var i = 0, l = pElem.childNodes.length; i < l; i++) {
-                r.push(pElem.childNodes.item(i))
+                ret.push(pElem.childNodes.item(i))
             }
-            return r;
+            return ret;
         }
-        if (!tAP.pp) {
+        
+        if (!self.parentNode) {
             return;
         }
+
         sendRequest.README = {
             license: 'Public Domain',
             url: 'http://jsgt.org/lib/ajax/ref.htm',
@@ -119,120 +132,143 @@ var tumblrAutoPager = {
             }
         };
 
-        function sendRequest(E, R, C, D, F, G, S, A) {
-            var Q = C.toUpperCase() == 'GET',
-                H = createHttpRequest();
-            if (H == null) {
-                return null
+        function sendRequest(callback, body, method, url, async, addTime, user, password) {
+            var isGet = method.toUpperCase() == 'GET';
+            
+            var req = createHttpRequest();
+            if (req == null) {
+                return null;
             }
-            if ((G) ? G : false) {
-                D += ((D.indexOf('?') == -1) ? '?' : '&') + 't=' + (new Date()).getTime()
+
+            if ((addTime) ? addTime : false) {
+                url += ((url.indexOf('?') == -1) ? '?' : '&') + 't=' + (new Date()).getTime()
             }
-            var P = new chkAjaBrowser(),
-                L = P.bw.opera,
-                I = P.bw.safari,
-                N = P.bw.konqueror,
-                M = P.bw.mozes;
-            if (typeof E == 'object') {
-                var J = E.onload;
-                var O = E.onbeforsetheader
+            
+            var userAgentChk = new chkAjaBrowser();
+            var isOpera = userAgentChk.bw.opera;
+            var isSafari = userAgentChk.bw.safari;
+            var isKonqueror = userAgentChk.bw.konqueror;
+            var isMozes = userAgentChk.bw.mozes;
+            
+            if (typeof callback == 'object') {
+                var onLoad = callback.onload;
+                var onBeforeSetHeader = callback.onbeforsetheader
             } else {
-                var J = E;
-                var O = null
+                var onLoad = callback;
+                var onBeforeSetHeader = null
             }
-            if (L || I || M) {
-                H.onload = function() {
-                    J(H);
-                    H.abort()
+
+            if (isOpera || isSafari || isMozes) {
+                req.onload = function() {
+                    onLoad(req);
+                    req.abort()
                 }
             } else {
-                H.onreadystatechange = function() {
-                    if (H.readyState == 4) {
-                        J(H);
-                        H.abort()
+                req.onreadystatechange = function() {
+                    if (req.readyState == 4) {
+                        onLoad(req);
+                        req.abort()
                     }
                 }
             }
-            R = K(R, D);
-            if (Q) {
-                D += ((D.indexOf('?') == -1) ? '?' : (R == '') ? '' : '&') + R
+            
+            body = processBody(body, url);
+            
+            if (isGet) {
+                url += ((url.indexOf('?') == -1) ? '?' : (body == '') ? '' : '&') + body;
             }
-            H.open(C, D, F, S, A);
-            if (!!O) {
-                O(H)
+            
+            req.open(method, url, async, user, password);
+            
+            if (!!onBeforeSetHeader) {
+                onBeforeSetHeader(req)
             }
-            B(H);
-            H.send(R);
+            
+            setReqHeaders(req);
+            
+            req.send(body);
 
-            function B(T) {
-                if (!L || typeof T.setRequestHeader == 'function') {
+            function setReqHeaders(T) {
+                if (!isOpera || typeof T.setRequestHeader == 'function') {
                     T.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8')
                 }
                 return T
             }
 
-            function K(X, V) {
-                var Z = [];
-                if (typeof X == 'object') {
-                    for (var W in X) {
-                        Y(W, X[W])
+            function processBody(body, url) {
+                var queryParams = [];
+                if (typeof body == 'object') {
+                    for (var key in body) {
+                        addQueryParam(key, body[key])
                     }
                 } else {
-                    if (typeof X == 'string') {
-                        if (X == '') {
+                    if (typeof body == 'string') {
+                        if (body == '') {
                             return ''
                         }
-                        if (X.charAt(0) == '&') {
-                            X = X.substring(1, X.length)
+                        if (body.charAt(0) == '&') {
+                            body = body.substring(1, body.length)
                         }
-                        var T = X.split('&');
-                        for (var W = 0; W < T.length; W++) {
-                            var U = T[W].split('=');
-                            Y(U[0], U[1])
+                        var split = body.split('&');
+                        for (var key = 0; key < split.length; key++) {
+                            var innerSplit = split[key].split('=');
+                            addQueryParam(innerSplit[0], innerSplit[1])
                         }
                     }
                 }
 
-                function Y(b, a) {
-                    Z.push(encodeURIComponent(b) + '=' + encodeURIComponent(a))
+                function addQueryParam(key, value) {
+                    queryParams.push(encodeURIComponent(key) + '=' + encodeURIComponent(value))
                 }
-                return Z.join('&')
+            
+                return queryParams.join('&')
             }
-            return H
+            
+            return req
         }
 
         function addNextPage(oj) {
             if (oj.status == 404) {
-                tAP.remainFlg = false;
+                self.remainFlg = false;
                 return;
             }
-            var d = document.createElement("div");
-            d.innerHTML = oj.responseText;
-            var posts = tAP.gP(d.getElementsByTagName("*"));
+            
+            var div = document.createElement("div");
+            div.innerHTML = oj.responseText;
+
+            var posts = self.posts(div.getElementsByTagName("*"));
             if (posts.length < 2) {
-                tAP.rF = false;
+                self.rF = false;
                 return;
             }
-            d = document.createElement("div");
-            d.className = "tumblrAutoPager_page_info";
-            tAP.pp.appendChild(d);
+            
+            div = document.createElement("div");
+            div.className = "tumblrAutoPager_page_info";
+            
+            self.parentNode.appendChild(div);
+            
             for (var i = 0; i < posts.length; i++) {
-                tAP.pp.appendChild(posts[i]);
+                self.parentNode.appendChild(posts[i]);
             }
+            
             var footer = $("footer");
             footer ? footer.parentNode.appendChild(footer) : null;
-            tAP.rF = true;
+            
+            self.rF = true;
         }
+
         watch_scroll();
 
         function watch_scroll() {
-            var d = document.compatMode == "BackCompat" ? document.body : document.documentElement;
-            var r = d.scrollHeight - d.clientHeight - (d.scrollTop || document.body.scrollTop);
-            if (r < d.clientHeight * 2 && tAP.rF) {
-                tAP.rF = false;
-                p++;
-                sendRequest(addNextPage, "", "GET", location.protocol + "//" + tAP.LN + "/page/" + p, true);
+            var target = document.compatMode == "BackCompat" ? document.body : document.documentElement;
+            
+            var dist = target.scrollHeight - target.clientHeight - (target.scrollTop || document.body.scrollTop);
+            if (dist < target.clientHeight * 2 && self.rF) {
+                self.rF = false;
+                page++;
+                sendRequest(addNextPage, "", "GET", location.protocol + "//" + self.location + "/page/" + page, true);
             }
+            
             setTimeout(arguments.callee, 200);
         };
 
@@ -242,12 +278,19 @@ var tumblrAutoPager = {
     },
     switchAutoPage: function() {
         this.rF = !this.rF;
-        var aE = document.getElementsByTagName('*');
-        for (var i = 0, l = aE.length; i < l; i++) {
-            if (aE[i].className == "tAP_switch") {
-                aE[i].firstChild.nodeValue = this.rF ? "AutoPage[OFF]" : "AutoPage[ON]";
+        var allElements = document.getElementsByTagName('*');
+        for (var i = 0, l = allElements.length; i < l; i++) {
+            if (allElements[i].className == "tAP_switch") {
+                allElements[i].firstChild.nodeValue = this.rF ? "AutoPage[OFF]" : "AutoPage[ON]";
             }
         }
     }
 };
-window.addEventListener ? window.addEventListener('load', tumblrAutoPager.init, false) : window.attachEvent ? window.attachEvent("onload", tumblrAutoPager.init) : window.onload = tumblrAutoPager.init;
+
+if (window.addEventListener) {
+    window.addEventListener('load', tumblrAutoPager.init, false);
+} else if (window.attachEvent) {
+    window.attachEvent("onload", tumblrAutoPager.init);
+} else {
+    window.onload = tumblrAutoPager.init;
+}
